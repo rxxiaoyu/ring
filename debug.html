@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>WX 调起自检</title>
+<style>
+  body{font-family:Arial,Helvetica,sans-serif;padding:16px}
+  pre{background:#f6f7f9;padding:10px;border-radius:6px;white-space:pre-wrap;word-break:break-all}
+  .btn{display:inline-block;padding:12px 18px;border:1px solid #ccc;border-radius:8px;text-decoration:none;margin:10px 0}
+</style>
+</head>
+<body>
+<h2>微信支付调起自检</h2>
+<p>把支付链接（需URL编码）放在 <code>?u=</code> 参数里访问本页。</p>
+<p><a id="openBtn" class="btn" href="#">点我尝试调起（必须手动点）</a></p>
+
+<h3>检测信息</h3>
+<pre id="info"></pre>
+
+<script>
+(function(){
+  function getParam(k){var m=location.search.match(new RegExp('[?&]'+k+'=([^&]+)'));return m?decodeURIComponent(m[1]):'';}
+  var u = getParam('u');
+  var ua = navigator.userAgent;
+  var inWX = /micromessenger/i.test(ua);
+  var info = {
+    in_wechat: inWX,
+    ua: ua,
+    param_u_present: !!u,
+    param_u_value: u
+  };
+  document.getElementById('info').textContent = JSON.stringify(info,null,2);
+
+  function tryOpen(){
+    if(!u){alert('缺少参数 ?u=，请传 URL 编码后的 weixin:// 链接');return;}
+    // 优先 WeixinJSBridge（需用户手势、桥就绪）
+    function byBridge(){
+      try{
+        if(typeof WeixinJSBridge!=='undefined' && WeixinJSBridge.invoke){
+          WeixinJSBridge.invoke('launchApplication',{schemeUrl:u},function(res){/* 可能返回fail，继续降级 */});
+          return true;
+        }
+      }catch(e){}
+      return false;
+    }
+    function byLocation(){
+      try{location.href=u;setTimeout(function(){location.replace(u);},200);}catch(e){}
+      return true;
+    }
+    function byIframe(){
+      try{var f=document.createElement('iframe');f.style.display='none';f.src=u;document.body.appendChild(f);setTimeout(function(){document.body.removeChild(f);},1500);}catch(e){}
+      return true;
+    }
+    if(!byBridge()) if(!byLocation()) byIframe();
+  }
+
+  var btn = document.getElementById('openBtn');
+  btn.addEventListener('click', function(e){
+    e.preventDefault();
+    if(typeof WeixinJSBridge==='undefined'){
+      document.addEventListener('WeixinJSBridgeReady', tryOpen, false);
+      tryOpen();
+    }else{
+      tryOpen();
+    }
+  });
+})();
+</script>
+</body>
+</html>
