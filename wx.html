@@ -3,104 +3,36 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>微信支付跳转</title>
+<title>打开微信支付</title>
 <style>
-  body{font-family:Arial,Helvetica,sans-serif;padding:24px}
-  .box{max-width:720px;margin:12vh auto;line-height:1.9;text-align:center}
-  .btn{display:inline-block;padding:12px 18px;border:1px solid #ccc;border-radius:8px;text-decoration:none}
-  code{background:#f6f7f9;padding:2px 6px;border-radius:4px}
-  .tips{color:#777;font-size:14px}
+  body{font-family:Arial,Helvetica,sans-serif;padding:24px;text-align:center}
+  .btn{display:inline-block;padding:14px 20px;border:1px solid #ccc;border-radius:10px;text-decoration:none;margin-top:20vh}
+  code{background:#f6f7f9;padding:2px 6px;border-radius:4px;display:block;margin-top:16px}
 </style>
 </head>
 <body>
-<div class="box">
-  <h2>正在打开微信支付…</h2>
-  <p class="tips">若未自动跳转，请点击下方按钮（必须是手动点击）。</p>
-  <p><a class="btn" id="openBtn" href="javascript:void(0)">打开微信支付</a></p>
-  <p>链接预览：<code id="preview">（未检测到）</code></p>
-</div>
+<a id="btn" class="btn" href="#">打开微信支付（点我）</a>
+<code id="preview"></code>
 
 <script>
 (function(){
-  // 读取 ?u=（必须是 URL 编码后的 weixin:// 链接）
-  function q(k){ var m = location.search.match(new RegExp('[?&]'+k+'=([^&]+)')); return m ? decodeURIComponent(m[1]) : ''; }
-  var scheme = q('u') || '';
-  var preview = document.getElementById('preview');
-  var btn = document.getElementById('openBtn');
-  preview.textContent = scheme || '（未检测到）';
-
-  // 简单判断是否在微信内置浏览器
-  var UA = navigator.userAgent.toLowerCase();
-  var inWeChat = UA.indexOf('micromessenger') > -1;
-
-  // 自动尝试（有些版本会拦自动跳转，只当作降级策略）
-  function tryAuto(){ if(!scheme) return; tryOpen(); }
-
-  // 核心：在用户点击时多路尝试
-  function tryOpen(){
-    if(!scheme){ return; }
-
-    // 1) WeixinJSBridge（点击触发、且等桥就绪）
-    function byBridge(){
-      try{
-        if(typeof WeixinJSBridge !== 'undefined' && WeixinJSBridge.invoke){
-          WeixinJSBridge.invoke('launchApplication', { schemeUrl: scheme }, function(res){
-            // 某些版本可能返回 fail，可继续尝试其他方式
-          });
-          return true;
-        }
-      }catch(e){}
-      return false;
-    }
-
-    // 2) 直接导航
-    function byLocation(){
-      try{
-        window.location.href = scheme;
-        setTimeout(function(){ window.location.replace(scheme); }, 200);
-        return true;
-      }catch(e){}
-      return false;
-    }
-
-    // 3) iframe 方式（旧机型/旧微信上有时更稳）
-    function byIframe(){
-      try{
-        var iframe = document.createElement('iframe');
-        iframe.style.display = 'none';
-        iframe.src = scheme;
-        document.body.appendChild(iframe);
-        setTimeout(function(){ document.body.removeChild(iframe); }, 1500);
-        return true;
-      }catch(e){}
-      return false;
-    }
-
-    // 依次尝试（在点击回调内执行，符合“需要用户手势”的要求）
-    var ok = byBridge();
-    if(!ok) ok = byLocation();
-    if(!ok) ok = byIframe();
-  }
-
-  // 绑定点击（必须真实用户点击）
-  btn.addEventListener('click', function(e){
-    e.preventDefault();
-    if(!scheme){ alert('缺少参数：?u=（请传 URL 编码后的 weixin:// 支付链接）'); return; }
-    // 如果桥还没就绪，等事件触发后再调用
-    if(typeof WeixinJSBridge === 'undefined'){
-      // iOS/Android 微信会触发 WeixinJSBridgeReady
-      document.addEventListener('WeixinJSBridgeReady', tryOpen, false);
-      // 同时立即尝试一次（部分环境不需要桥）
-      tryOpen();
-    }else{
-      tryOpen();
-    }
-  });
-
-  // 自动尝试一次（不保证成功）
-  if(scheme && inWeChat){
-    // 许多版本会拦自动拉起，这只是兜底
-    setTimeout(tryAuto, 120);
+  function getParam(k){var m=location.search.match(new RegExp('[?&]'+k+'=([^&]+)'));return m?decodeURIComponent(m[1]):'';}
+  var u = getParam('u');
+  var a = document.getElementById('btn');
+  var p = document.getElementById('preview');
+  p.textContent = u ? u : '未检测到 ?u= 参数（需URL编码的 weixin:// 链接）';
+  if(u){
+    // 关键：直接把 href 设为 scheme，让“用户点击超链接”来触发
+    a.setAttribute('href', u);
+    a.setAttribute('target', '_self'); // 避免新窗口
+    // 兜底：同时在点击时再尝试一次 location（有些内核需要）
+    a.addEventListener('click', function(e){
+      // 不阻止默认，先让 <a> 自己跳。如果失败，下面的 setTimeout 再补一次。
+      setTimeout(function(){ try{location.href=u;}catch(e){} }, 50);
+    });
+  }else{
+    a.removeAttribute('href');
+    a.onclick=function(e){e.preventDefault();alert('缺少 ?u= 参数');};
   }
 })();
 </script>
