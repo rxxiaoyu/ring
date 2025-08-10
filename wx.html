@@ -3,37 +3,65 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>打开微信支付</title>
+<title>打开微信支付1.1</title>
 <style>
   body{font-family:Arial,Helvetica,sans-serif;padding:24px;text-align:center}
   .btn{display:inline-block;padding:14px 20px;border:1px solid #ccc;border-radius:10px;text-decoration:none;margin-top:20vh}
   code{background:#f6f7f9;padding:2px 6px;border-radius:4px;display:block;margin-top:16px}
+  .tips{color:#777;font-size:14px}
 </style>
 </head>
 <body>
-<a id="btn" class="btn" href="#">打开微信支付（点我）</a>
-<code id="preview"></code>
+<a id="btn" class="btn" href="javascript:void(0)">打开微信支付（点我）</a>
+<p class="tips">若无反应，请再点一次或下拉/上滑后再点。</p>
+<code id="preview">（未检测到 ?u= 参数）</code>
 
 <script>
 (function(){
-  function getParam(k){var m=location.search.match(new RegExp('[?&]'+k+'=([^&]+)'));return m?decodeURIComponent(m[1]):'';}
-  var u = getParam('u');
-  var a = document.getElementById('btn');
-  var p = document.getElementById('preview');
-  p.textContent = u ? u : '未检测到 ?u= 参数（需URL编码的 weixin:// 链接）';
-  if(u){
-    // 关键：直接把 href 设为 scheme，让“用户点击超链接”来触发
-    a.setAttribute('href', u);
-    a.setAttribute('target', '_self'); // 避免新窗口
-    // 兜底：同时在点击时再尝试一次 location（有些内核需要）
-    a.addEventListener('click', function(e){
-      // 不阻止默认，先让 <a> 自己跳。如果失败，下面的 setTimeout 再补一次。
-      setTimeout(function(){ try{location.href=u;}catch(e){} }, 50);
-    });
-  }else{
-    a.removeAttribute('href');
-    a.onclick=function(e){e.preventDefault();alert('缺少 ?u= 参数');};
+  function getParam(k){
+    var m = location.search.match(new RegExp('[?&]'+k+'=([^&]+)'));
+    return m ? decodeURIComponent(m[1]) : '';
   }
+  var scheme = getParam('u');               // URL 编码后的 weixin://...
+  var btn = document.getElementById('btn');
+  var pv  = document.getElementById('preview');
+
+  if(!scheme){
+    btn.onclick = function(e){ e.preventDefault(); alert('缺少参数：?u=（请传URL编码后的 weixin:// 链接）'); };
+    return;
+  }
+  pv.textContent = scheme;
+
+  // 点击时再设置 href，并按顺序尝试多种方式
+  btn.addEventListener('click', function(e){
+    // 1) 先让 <a> 自带跳转有机会执行（需用户手势）
+    btn.setAttribute('href', scheme);
+    btn.setAttribute('target', '_self');
+
+    // 2) WeixinJSBridge（若可用）
+    try{
+      if(typeof WeixinJSBridge !== 'undefined' && WeixinJSBridge.invoke){
+        WeixinJSBridge.invoke('launchApplication', { schemeUrl: scheme }, function(res){
+          // 无论成功失败，都不拦截默认行为；继续让 <a> 及后续兜底发挥作用
+        });
+      }
+    }catch(err){}
+
+    // 3) 轻微延时后再补一次 location（有些内核需要）
+    setTimeout(function(){ try{ window.location.href = scheme; }catch(e){} }, 60);
+
+    // 4) 再兜底一次 iframe（老机型/老微信）
+    setTimeout(function(){
+      try{
+        var f = document.createElement('iframe');
+        f.style.display = 'none';
+        f.src = scheme;
+        document.body.appendChild(f);
+        setTimeout(function(){ try{ document.body.removeChild(f); }catch(e){} }, 1500);
+      }catch(e){}
+    }, 160);
+    // 不阻止默认点击，让 <a href=scheme> 先跑
+  }, {passive:true});
 })();
 </script>
 </body>
